@@ -19,7 +19,6 @@ frontend/dist/
 clips/
 chunks/
 *.mp4
-!frontend/**
 
 # OS
 .DS_Store
