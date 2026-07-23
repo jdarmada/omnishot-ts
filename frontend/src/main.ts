@@ -157,6 +157,13 @@ function updateActiveChip(): void {
   });
 }
 
+// Searches take priority over any active category: drop the selection.
+function enterSearchMode(): void {
+  mode = "search";
+  currentCategory = null;
+  updateActiveChip();
+}
+
 async function loadCategories(): Promise<void> {
   try {
     const data = await fetchCategories();
@@ -277,7 +284,7 @@ async function runTextSearch(query: string, push = true): Promise<void> {
   goBtn.textContent = "…";
   try {
     const data = await searchText(query);
-    mode = "search";
+    enterSearchMode();
     latEl.innerHTML = `<span class="lat">embed ${data.embed_ms.toFixed(0)}ms · search ${data.search_ms.toFixed(1)}ms</span>`;
     render(data.hits);
     if (push) pushUrl(`${location.pathname}?q=${encodeURIComponent(query)}`);
@@ -308,7 +315,7 @@ async function findByImage(): Promise<void> {
   goBtn.textContent = "…";
   try {
     const data = await searchImage(imageB64);
-    mode = "search";
+    enterSearchMode();
     latEl.innerHTML = `<span class="lat">image query · embed ${data.embed_ms.toFixed(0)}ms · search ${data.search_ms.toFixed(1)}ms</span>`;
     render(data.hits);
     // Image queries can't be encoded in the URL; just clear stale params.
@@ -349,7 +356,7 @@ async function similar(chunkId: string, push = true): Promise<void> {
   qInput.value = "";
   try {
     const data = await searchSimilar(chunkId);
-    mode = "search";
+    enterSearchMode();
     latEl.innerHTML = `<span class="lat">similar via stored vector · search ${data.search_ms.toFixed(1)}ms · no embedding call</span>`;
     render(data.hits);
     if (push) pushUrl(`${location.pathname}?similar=${encodeURIComponent(chunkId)}`);
