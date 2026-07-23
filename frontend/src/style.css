@@ -121,16 +121,20 @@ input:focus {
   box-shadow: 4px 4px 0 var(--ink);
 }
 
-button.go {
+button.go,
+button.image {
   font: inherit;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  border: 2px solid var(--ink);
+  padding: 0 22px;
+  cursor: pointer;
+}
+
+button.go {
   background: var(--ink);
   color: var(--paper);
-  border: 2px solid var(--ink);
-  padding: 0 28px;
-  cursor: pointer;
 }
 
 button.go:hover {
@@ -138,7 +142,18 @@ button.go:hover {
   border-color: var(--accent);
 }
 
-button.go:disabled {
+button.image {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+button.image:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+button.go:disabled,
+button.image:disabled {
   opacity: 0.6;
   cursor: wait;
 }

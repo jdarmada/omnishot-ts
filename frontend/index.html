@@ -33,10 +33,19 @@
       <div class="search-row" id="searchrow">
         <input
           id="q"
-          placeholder="Describe the clip you need, visually"
+          placeholder="Describe the clip, or upload / drop a reference image"
           autocomplete="off"
           autofocus
         />
+        <input
+          type="file"
+          id="image-file"
+          accept="image/*"
+          hidden
+        />
+        <button class="image" id="upload-image" type="button" title="Search by image">
+          Image
+        </button>
         <button class="go" id="go" type="button">Find</button>
       </div>
       <div class="querychip" id="querychip">

@@ -17,6 +17,8 @@ const $ = <T extends HTMLElement>(id: string) => {
 
 const qInput = $<HTMLInputElement>("q");
 const goBtn = $<HTMLButtonElement>("go");
+const uploadImageBtn = $<HTMLButtonElement>("upload-image");
+const imageFileInput = $<HTMLInputElement>("image-file");
 const changeFolderBtn = $<HTMLButtonElement>("change-folder");
 const libPath = $("lib-path");
 const grid = $("grid");
@@ -179,7 +181,25 @@ async function findByImage(): Promise<void> {
 
 function clearImage(): void {
   imageB64 = null;
+  imageFileInput.value = "";
   queryChip.classList.remove("visible");
+}
+
+function loadImageFile(file: File): void {
+  if (!file.type.startsWith("image/")) {
+    alert("Please choose an image file (JPEG, PNG, WebP, …).");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result);
+    imageB64 = dataUrl.split(",")[1] ?? null;
+    qImg.src = dataUrl;
+    queryChip.classList.add("visible");
+    qInput.value = "";
+    void findByImage();
+  };
+  reader.readAsDataURL(file);
 }
 
 async function similar(chunkId: string): Promise<void> {
@@ -226,17 +246,13 @@ searchRow.addEventListener("drop", (e) => {
   const dt = (e as DragEvent).dataTransfer;
   if (!dt) return;
   const file = [...dt.files].find((f) => f.type.startsWith("image/"));
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const dataUrl = String(reader.result);
-    imageB64 = dataUrl.split(",")[1] ?? null;
-    qImg.src = dataUrl;
-    queryChip.classList.add("visible");
-    qInput.value = "";
-    void findByImage();
-  };
-  reader.readAsDataURL(file);
+  if (file) loadImageFile(file);
+});
+
+uploadImageBtn.addEventListener("click", () => imageFileInput.click());
+imageFileInput.addEventListener("change", () => {
+  const file = imageFileInput.files?.[0];
+  if (file) loadImageFile(file);
 });
 
 $("clear-image").addEventListener("click", clearImage);
