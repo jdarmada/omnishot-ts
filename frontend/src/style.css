@@ -159,6 +159,12 @@ button.image:hover {
   color: var(--paper);
 }
 
+button.image.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+
 button.go:disabled,
 button.image:disabled {
   opacity: 0.6;

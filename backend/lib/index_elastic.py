@@ -56,7 +56,10 @@ def create_index(
     mappings = {
         "properties": {
             "chunk_id": {"type": "keyword"},
-            "clip_id": {"type": "keyword"},
+            "clip_id": {
+                "type": "keyword",
+                "fields": {"text": {"type": "text"}},
+            },
             "path": {"type": "keyword", "index": False},
             "start_sec": {"type": "float"},
             "end_sec": {"type": "float"},
@@ -65,7 +68,10 @@ def create_index(
             "uploaded_at": {"type": "date"},
             "uploader": {"type": "keyword"},
             "tags": {"type": "keyword"},
-            "category": {"type": "keyword"},
+            "category": {
+                "type": "keyword",
+                "fields": {"text": {"type": "text"}},
+            },
             "transcript": {"type": "text", "analyzer": "english"},
             "embedding": {
                 "type": "dense_vector",
@@ -124,3 +130,58 @@ def knn_search(
     return [
         {**hit["_source"], "_score": hit["_score"]} for hit in res["hits"]["hits"]
     ]
+
+
+def bm25_search(
+    es: Elasticsearch,
+    index: str,
+    query_text: str,
+    k: int = 50,
+) -> list[dict]:
+    """Lexical leg of hybrid search: transcripts (when present), tokenized
+    filenames, and category labels."""
+    res = es.search(
+        index=index,
+        query={
+            "multi_match": {
+                "query": query_text,
+                "fields": ["transcript", "clip_id.text^2", "category.text"],
+            }
+        },
+        size=k,
+        source_excludes=["embedding"],
+    )
+    return [
+        {**hit["_source"], "_score": hit["_score"]} for hit in res["hits"]["hits"]
+    ]
+
+
+def rrf_fuse(result_lists: list[list[dict]], rank_constant: int = 60) -> list[dict]:
+    """Reciprocal-rank fusion: score(d) = Σ 1/(rank_constant + rank + 1).
+
+    Documents appearing in multiple lists accumulate score, so agreement
+    between the semantic and lexical legs pushes a hit up the ranking.
+    """
+    scores: dict[str, float] = {}
+    by_id: dict[str, dict] = {}
+    for results in result_lists:
+        for rank, hit in enumerate(results):
+            cid = hit["chunk_id"]
+            scores[cid] = scores.get(cid, 0.0) + 1.0 / (rank_constant + rank + 1)
+            by_id.setdefault(cid, hit)
+    ranked = sorted(scores.items(), key=lambda item: -item[1])
+    return [{**by_id[cid], "_score": score} for cid, score in ranked]
+
+
+def hybrid_search(
+    es: Elasticsearch,
+    index: str,
+    query_text: str,
+    query_vector: list[float],
+    k: int = 50,
+    num_candidates: int = 100,
+) -> list[dict]:
+    """kNN + BM25 fused with reciprocal-rank fusion."""
+    knn_hits = knn_search(es, index, query_vector, k=k, num_candidates=num_candidates)
+    bm25_hits = bm25_search(es, index, query_text, k=k)
+    return rrf_fuse([knn_hits, bm25_hits])

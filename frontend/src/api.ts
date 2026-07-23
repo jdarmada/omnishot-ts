@@ -85,11 +85,15 @@ export async function setLibrary(path: string): Promise<LibraryResponse> {
   return r.json();
 }
 
-export async function searchText(query: string, k = 9): Promise<SearchResponse> {
+export async function searchText(
+  query: string,
+  k = 9,
+  hybrid = false
+): Promise<SearchResponse> {
   const r = await fetch("/api/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, k }),
+    body: JSON.stringify({ query, k, hybrid }),
   });
   if (!r.ok) throw new Error(await parseError(r));
   return r.json();

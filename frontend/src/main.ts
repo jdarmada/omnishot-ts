@@ -22,6 +22,7 @@ const catsEl = $("cats");
 const qInput = $<HTMLInputElement>("q");
 const goBtn = $<HTMLButtonElement>("go");
 const uploadImageBtn = $<HTMLButtonElement>("upload-image");
+const hybridToggle = $<HTMLButtonElement>("hybrid-toggle");
 const imageFileInput = $<HTMLInputElement>("image-file");
 const changeFolderBtn = $<HTMLButtonElement>("change-folder");
 const libPath = $("lib-path");
@@ -44,6 +45,7 @@ let mode: "recent" | "search" | "category" = "recent";
 let currentCategory: string | null = null;
 let lastChunks = -1;
 let logOpen = false;
+let hybridOn = false;
 
 const EMPTY_DEFAULT = "Link a folder of footage to get started.";
 const EMPTY_DEFAULT_HINT =
@@ -283,17 +285,26 @@ async function runTextSearch(query: string, push = true): Promise<void> {
   goBtn.disabled = true;
   goBtn.textContent = "…";
   try {
-    const data = await searchText(query);
+    const data = await searchText(query, 9, hybridOn);
     enterSearchMode();
-    latEl.innerHTML = `<span class="lat">embed ${data.embed_ms.toFixed(0)}ms · search ${data.search_ms.toFixed(1)}ms</span>`;
+    const label = hybridOn ? "hybrid (knn + bm25)" : "embed";
+    latEl.innerHTML = `<span class="lat">${label} ${data.embed_ms.toFixed(0)}ms · search ${data.search_ms.toFixed(1)}ms</span>`;
     render(data.hits);
-    if (push) pushUrl(`${location.pathname}?q=${encodeURIComponent(query)}`);
+    if (push) {
+      const hy = hybridOn ? "&hybrid=1" : "";
+      pushUrl(`${location.pathname}?q=${encodeURIComponent(query)}${hy}`);
+    }
   } catch (e) {
     setEmptyMessage(`Search failed: ${(e as Error).message}`);
   } finally {
     goBtn.disabled = false;
     goBtn.textContent = "Find";
   }
+}
+
+function setHybrid(on: boolean): void {
+  hybridOn = on;
+  hybridToggle.classList.toggle("on", on);
 }
 
 async function find(): Promise<void> {
@@ -372,6 +383,7 @@ async function dispatchFromLocation(): Promise<void> {
   const q = params.get("q");
   const sim = params.get("similar");
   const cat = params.get("category");
+  setHybrid(params.get("hybrid") === "1");
   if (q) {
     qInput.value = q;
     await runTextSearch(q, false);
@@ -416,6 +428,12 @@ searchRow.addEventListener("drop", (e) => {
   if (!dt) return;
   const file = [...dt.files].find((f) => f.type.startsWith("image/"));
   if (file) loadImageFile(file);
+});
+
+hybridToggle.addEventListener("click", () => {
+  setHybrid(!hybridOn);
+  const query = qInput.value.trim();
+  if (query && mode === "search") void runTextSearch(query);
 });
 
 uploadImageBtn.addEventListener("click", () => imageFileInput.click());

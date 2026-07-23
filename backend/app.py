@@ -44,6 +44,7 @@ from lib.index_elastic import (  # noqa: E402
     bulk_set_categories,
     create_index,
     es_client,
+    hybrid_search,
     knn_search,
 )
 from lib.video_proxy import make_video_input  # noqa: E402
@@ -304,8 +305,22 @@ def watcher() -> None:
             logger.warning("elasticsearch not ready (%s); retrying in 5s", e)
             time.sleep(5)
     try:
-        # Additive no-op if the field already exists in the mapping.
-        es.indices.put_mapping(index=INDEX, properties={"category": {"type": "keyword"}})
+        # Additive no-ops when the fields already exist in the mapping.
+        es.indices.put_mapping(
+            index=INDEX,
+            properties={
+                "category": {"type": "keyword", "fields": {"text": {"type": "text"}}},
+                "clip_id": {"type": "keyword", "fields": {"text": {"type": "text"}}},
+            },
+        )
+        # New multi-fields only apply to docs (re)indexed after the mapping
+        # change; reprocess existing docs once so hybrid search covers them.
+        schema_marker = CHUNKS_DIR / ".schema_v2"
+        if not schema_marker.exists():
+            es.update_by_query(index=INDEX, conflicts="proceed", refresh=True)
+            CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
+            schema_marker.touch()
+            logger.info("reindexed existing docs for hybrid search fields")
         category_index = build_category_index(jina, _cfg, CHUNKS_DIR)
         _backfill_categories()
     except Exception as e:
@@ -379,6 +394,7 @@ def watcher() -> None:
 class SearchRequest(BaseModel):
     query: str
     k: int = 9
+    hybrid: bool = False
 
 
 class ImageSearchRequest(BaseModel):
@@ -618,7 +634,10 @@ async def search(req: SearchRequest):
         [qv] = jina.embed([req.query], task="retrieval.query", config=_cfg)
         embed_ms = (time.perf_counter() - t0) * 1000
         t1 = time.perf_counter()
-        hits = knn_search(es, INDEX, qv, k=50, num_candidates=100)
+        if req.hybrid:
+            hits = hybrid_search(es, INDEX, req.query, qv, k=50, num_candidates=100)
+        else:
+            hits = knn_search(es, INDEX, qv, k=50, num_candidates=100)
         search_ms = (time.perf_counter() - t1) * 1000
     except Exception as e:
         raise HTTPException(500, f"Search failed: {e}") from e
@@ -626,6 +645,7 @@ async def search(req: SearchRequest):
         "hits": _hits_payload(hits, k=req.k),
         "embed_ms": embed_ms,
         "search_ms": search_ms,
+        "hybrid": req.hybrid,
     }
 
 

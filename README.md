@@ -171,6 +171,7 @@ re-sorted on startup. Tune the assignment strictness with `CATEGORY_MIN_SIM`
 ### What you can do in the UI
 
 - **Text search** — describe the shot visually
+- **Hybrid search** — toggle **Hybrid** to fuse semantic search with keyword (BM25) matching over filenames, categories, and transcripts, combined with reciprocal-rank fusion. Useful when your files have meaningful names like `beach_sunset_drone.mp4`
 - **Image search** — click **Image** to upload a reference, or drag one onto the search bar
 - **≈ More** — find visually similar clips (reuses the stored vector, no Jina call)
 - **Reveal** — open the source file in Finder / Explorer / file manager (the original in your library)
