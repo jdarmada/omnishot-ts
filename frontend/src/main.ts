@@ -63,11 +63,11 @@ const MONTHS = [
 ];
 
 // uploaded_at is "YYYY-MM-DD"; parse manually so timezones can't shift the day
-function fmtDate(iso?: string | null): string {
+function uploadedBadge(iso?: string | null): string {
   if (!iso) return "new";
   const [, m, d] = iso.split("-").map(Number);
   if (!m || !d) return "new";
-  return `${MONTHS[m - 1]} ${d}`;
+  return `uploaded ${MONTHS[m - 1]} ${d}`;
 }
 
 function pushUrl(url: string): void {
@@ -96,7 +96,7 @@ function render(hits: Hit[], emptyMessage = "No matches. Try different words."):
     .map(
       (h, i) => `
     <div class="clip">
-      <div class="rank ${i === 0 && mode === "search" ? "top" : ""}">${mode === "search" ? `#${i + 1}` : fmtDate(h.uploaded_at)}</div>
+      <div class="rank ${i === 0 && mode === "search" ? "top" : ""}">${mode === "search" ? `#${i + 1}` : uploadedBadge(h.uploaded_at)}</div>
       <video src="/api/clip/${encodeURIComponent(h.chunk_id)}" muted loop playsinline preload="metadata"></video>
       <div class="meta">
         <span>
