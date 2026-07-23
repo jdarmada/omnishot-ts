@@ -1,21 +1,21 @@
-# omnishot-ts
+# omnishot
 
-[![CI](https://github.com/jdarmada/omnishot-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/jdarmada/omnishot-ts/actions/workflows/ci.yml)
+[![CI](https://github.com/jdarmada/omnishot/actions/workflows/ci.yml/badge.svg)](https://github.com/jdarmada/omnishot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 Standalone multimodal b-roll search: link any folder of footage, search by text or image, jump to the source clip in your file manager.
 
 Python FastAPI backend + TypeScript (Vite) frontend. Embeddings via **Jina v5-omni-small**; kNN via **Elasticsearch HNSW**.
 
-Built on the retrieval pipeline from the [omnishot](https://github.com/jdarmada/omnishot) benchmark repo: this app is the editor-facing search tool, while the benchmark studies how far video embeddings can be compressed.
+Built on the retrieval pipeline from the [omnishot-benchmark](https://github.com/jdarmada/omnishot-benchmark) repo: this app is the editor-facing search tool, while the benchmark studies how far video embeddings can be compressed.
 
 ## Quick start (Docker)
 
 The fastest way to try it — one command runs Elasticsearch + the app:
 
 ```bash
-git clone https://github.com/jdarmada/omnishot-ts
-cd omnishot-ts
+git clone https://github.com/jdarmada/omnishot
+cd omnishot
 cp .env.example .env      # set JINA_API_KEY (free key at jina.ai)
 docker compose up -d
 ```
@@ -27,7 +27,7 @@ Open **http://localhost:8001** and drop video files into `./clips`.
 > [Run the app](#run-the-app) below for the local setup.
 
 ```
-omnishot-ts/
+omnishot/
 ├── backend/
 │   ├── app.py              # FastAPI: library watch + search APIs
 │   ├── requirements.txt
@@ -71,8 +71,8 @@ omnishot-ts/
 ## Setup
 
 ```bash
-git clone https://github.com/jdarmada/omnishot-ts
-cd omnishot-ts
+git clone https://github.com/jdarmada/omnishot
+cd omnishot
 
 # Python
 python -m venv .venv

@@ -1,5 +1,5 @@
 """
-omnishot-ts — folder-watch b-roll search.
+omnishot — folder-watch b-roll search.
 
 Links one library folder on disk. Videos added there are indexed; files
 removed from the folder leave the search corpus. Chunks stay in CHUNKS_DIR.
@@ -71,7 +71,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="omnishot-ts", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="omnishot", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

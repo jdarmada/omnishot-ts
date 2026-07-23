@@ -1,12 +1,12 @@
-# Contributing to omnishot-ts
+# Contributing to omnishot
 
 Thanks for your interest! This document covers dev setup, testing, and where things live.
 
 ## Dev setup
 
 ```bash
-git clone https://github.com/jdarmada/omnishot-ts
-cd omnishot-ts
+git clone https://github.com/jdarmada/omnishot
+cd omnishot
 
 # Backend
 python -m venv .venv
@@ -64,7 +64,7 @@ making this a proper pluggable interface are welcome.
 
 **Index schema** lives in `backend/lib/index_elastic.py` (`create_index`). The
 app uses a single float32 HNSW index; the upstream
-[omnishot](https://github.com/jdarmada/omnishot) benchmark explores
+[omnishot-benchmark](https://github.com/jdarmada/omnishot-benchmark) repo explores
 quantization and dimension trade-offs if you want data before changing this.
 
 ## Pull requests

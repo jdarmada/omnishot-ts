@@ -1,1 +1,1 @@
-"""Core pipeline helpers for omnishot-ts."""
+"""Core pipeline helpers for omnishot."""

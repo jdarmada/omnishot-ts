@@ -2,7 +2,7 @@
 
 ## Threat model: this is a local tool
 
-omnishot-ts is designed to run on **your own machine** for **your own footage**.
+omnishot is designed to run on **your own machine** for **your own footage**.
 Several endpoints intentionally interact with the host OS and have no
 authentication:
 
@@ -30,6 +30,6 @@ Only the latest release receives security fixes.
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately via
-[GitHub Security Advisories](https://github.com/jdarmada/omnishot-ts/security/advisories/new)
+[GitHub Security Advisories](https://github.com/jdarmada/omnishot/security/advisories/new)
 rather than opening a public issue. Include reproduction steps and impact.
 You should receive a response within a week.
