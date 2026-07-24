@@ -6,31 +6,38 @@ client = TestClient(app_module.app)
 
 
 class FakeES:
-    def __init__(self, ping_ok: bool = True):
-        self._ping_ok = ping_ok
+    def info(self):
+        return {
+            "cluster_name": "test-cluster",
+            "version": {"number": "9.4.3", "build_flavor": "default"},
+        }
 
-    def ping(self):
-        return self._ping_ok
 
-
-def test_health_reports_es_up(monkeypatch):
-    monkeypatch.setattr(app_module, "es", FakeES(ping_ok=True))
+def test_health_reports_es_and_deployment(monkeypatch):
+    monkeypatch.setattr(app_module, "es", FakeES())
     r = client.get("/api/health")
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
     assert body["elasticsearch"] is True
+    assert body["deployment"] == {
+        "flavor": "default",
+        "version": "9.4.3",
+        "cluster": "test-cluster",
+    }
 
 
 def test_health_survives_es_down(monkeypatch):
     class ExplodingES:
-        def ping(self):
+        def info(self):
             raise ConnectionError("no cluster")
 
     monkeypatch.setattr(app_module, "es", ExplodingES())
     r = client.get("/api/health")
     assert r.status_code == 200
-    assert r.json()["elasticsearch"] is False
+    body = r.json()
+    assert body["elasticsearch"] is False
+    assert body["deployment"] is None
 
 
 def test_status_shape():

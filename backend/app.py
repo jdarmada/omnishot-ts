@@ -156,6 +156,30 @@ def _clip_key(p: Path) -> str:
     return f"{p.name}:{st.st_size}:{int(st.st_mtime)}"
 
 
+# ---------------------------------------------------------------------------
+# Embed cache — chunk_id → vector. Lets a library re-index into a different
+# Elasticsearch deployment (local ↔ cloud ↔ serverless) without re-paying
+# the embedding API.
+# ---------------------------------------------------------------------------
+
+EMBED_CACHE = CHUNKS_DIR / ".embed_cache.json"
+_embed_cache: dict[str, list[float]] = {}
+
+
+def _load_embed_cache() -> None:
+    global _embed_cache
+    if EMBED_CACHE.exists():
+        try:
+            _embed_cache = json.loads(EMBED_CACHE.read_text())
+        except Exception:
+            _embed_cache = {}
+
+
+def _save_embed_cache() -> None:
+    CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
+    EMBED_CACHE.write_text(json.dumps(_embed_cache))
+
+
 def _watch_key(p: Path, watch_dir: Path) -> str:
     try:
         return str(p.resolve().relative_to(watch_dir))
@@ -184,13 +208,18 @@ def _ingest_clip(clip: Path, watch_dir: Path, manifest: dict) -> None:
     status.update(state="processing", current=clip.name)
     chunks = chunk_video(clip, CHUNKS_DIR)
     docs = []
+    cache_dirty = False
     for c in chunks:
-        try:
-            inp = make_video_input(c.path)
-            [vec] = jina.embed([inp], task="retrieval.passage", config=_cfg)
-        except Exception as e:
-            logger.warning("embed failed for %s: %s", c.chunk_id, e)
-            continue
+        vec = _embed_cache.get(c.chunk_id)
+        if vec is None:
+            try:
+                inp = make_video_input(c.path)
+                [vec] = jina.embed([inp], task="retrieval.passage", config=_cfg)
+                _embed_cache[c.chunk_id] = vec
+                cache_dirty = True
+            except Exception as e:
+                logger.warning("embed failed for %s: %s", c.chunk_id, e)
+                continue
         docs.append(
             ChunkDoc(
                 chunk_id=c.chunk_id,
@@ -207,6 +236,8 @@ def _ingest_clip(clip: Path, watch_dir: Path, manifest: dict) -> None:
                 embedding=vec,
             )
         )
+    if cache_dirty:
+        _save_embed_cache()
     if docs:
         bulk_index(es, INDEX, docs)
         es.indices.refresh(index=INDEX)
@@ -226,6 +257,7 @@ def _remove_clip(name: str, manifest: dict, quiet: bool = False) -> None:
     entry = manifest.pop(name, None)
     if not entry:
         return
+    cache_dirty = False
     for cid in entry["chunk_ids"]:
         try:
             es.delete(index=INDEX, id=cid)
@@ -234,6 +266,13 @@ def _remove_clip(name: str, manifest: dict, quiet: bool = False) -> None:
         p = Path(entry["chunk_paths"].get(cid, ""))
         if p.exists() and CHUNKS_DIR in p.resolve().parents:
             p.unlink(missing_ok=True)
+        # A removed or changed clip invalidates its cached embeddings
+        # (chunk ids repeat when the same filename is re-ingested).
+        if cid in _embed_cache:
+            del _embed_cache[cid]
+            cache_dirty = True
+    if cache_dirty:
+        _save_embed_cache()
     try:
         es.indices.refresh(index=INDEX)
     except Exception:
@@ -273,8 +312,66 @@ def set_library(path: Path, *, clear: bool = True) -> Path:
         return _watch_dir
 
 
+def _reconcile_manifest(manifest: dict) -> None:
+    """Re-queue clips whose chunks aren't in the connected index.
+
+    Keeps the local manifest honest when ES_URL points at a different
+    deployment (local ↔ cloud ↔ serverless): missing clips re-index
+    automatically, using cached embeddings.
+    """
+    all_ids = [cid for e in manifest.values() for cid in e["chunk_ids"]]
+    if not all_ids:
+        return
+    found: set[str] = set()
+    for i in range(0, len(all_ids), 5000):
+        batch = all_ids[i : i + 5000]
+        res = es.search(
+            index=INDEX,
+            query={"ids": {"values": batch}},
+            size=len(batch),
+            source=False,
+        )
+        found.update(h["_id"] for h in res["hits"]["hits"])
+    stale = [
+        name
+        for name, e in manifest.items()
+        if not set(e["chunk_ids"]) <= found
+    ]
+    for name in stale:
+        manifest.pop(name, None)
+    if stale:
+        _save_manifest(manifest)
+        log_event(f"{len(stale)} clips queued for indexing on this deployment")
+        logger.info("reconcile: %d clips not in index, will re-ingest", len(stale))
+
+
+def _backfill_embed_cache(manifest: dict) -> None:
+    """Copy embeddings already in the index into the local cache, so a later
+    deployment switch can re-index without calling the embedding API."""
+    missing = [
+        cid
+        for e in manifest.values()
+        for cid in e["chunk_ids"]
+        if cid not in _embed_cache
+    ]
+    if not missing:
+        return
+    added = 0
+    for i in range(0, len(missing), 500):
+        batch = missing[i : i + 500]
+        res = es.mget(index=INDEX, ids=batch, source_includes=["embedding"])
+        for doc in res["docs"]:
+            if doc.get("found") and "embedding" in doc.get("_source", {}):
+                _embed_cache[doc["_id"]] = doc["_source"]["embedding"]
+                added += 1
+    if added:
+        _save_embed_cache()
+        logger.info("embed cache backfilled with %d vectors from the index", added)
+
+
 def watcher() -> None:
     global _watch_dir
+    _load_embed_cache()
     # Wait for Elasticsearch rather than dying if it isn't up yet.
     while True:
         try:
@@ -305,6 +402,11 @@ def watcher() -> None:
                 generation = current_gen
                 pending_sizes = {}
                 manifest = _load_manifest()
+                try:
+                    _reconcile_manifest(manifest)
+                    _backfill_embed_cache(manifest)
+                except Exception as e:
+                    logger.warning("manifest reconcile failed: %s", e)
                 _refresh_status(manifest)
                 status.update(state="watching", current=None)
 
@@ -367,11 +469,25 @@ class LibraryRequest(BaseModel):
 @app.get("/api/health")
 async def health():
     es_ok = False
+    deployment = None
     try:
-        es_ok = bool(es.ping())
+        info = es.info()
+        es_ok = True
+        version = info.get("version", {})
+        # build_flavor is "serverless" on Serverless, "default" otherwise
+        deployment = {
+            "flavor": version.get("build_flavor"),
+            "version": version.get("number"),
+            "cluster": info.get("cluster_name"),
+        }
     except Exception:
         pass
-    return {"status": "ok", "elasticsearch": es_ok, "index": INDEX}
+    return {
+        "status": "ok",
+        "elasticsearch": es_ok,
+        "index": INDEX,
+        "deployment": deployment,
+    }
 
 
 @app.get("/api/status")

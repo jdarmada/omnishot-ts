@@ -31,16 +31,29 @@ class ChunkDoc:
 
 
 def es_client() -> Elasticsearch:
+    """Connect to any Elasticsearch deployment.
+
+    Local Docker:   ES_URL=http://localhost:9200 (no key)
+    Cloud managed:  ES_CLOUD_ID=<cloud id> + ES_API_KEY, or ES_URL + ES_API_KEY
+    Serverless:     ES_URL=https://<project>.es.<region>... + ES_API_KEY
+    """
     url = os.environ.get("ES_URL")
-    if not url:
-        raise RuntimeError(
-            "ES_URL is not set. Copy .env.example to .env and set ES_URL "
-            "(http://localhost:9200 for local Docker Elasticsearch)."
-        )
-    kwargs: dict = {"request_timeout": 120}
+    cloud_id = os.environ.get("ES_CLOUD_ID")
     api_key = os.environ.get("ES_API_KEY")
+
+    kwargs: dict = {"request_timeout": 120}
     if api_key:
         kwargs["api_key"] = api_key
+
+    if cloud_id:
+        return Elasticsearch(cloud_id=cloud_id, **kwargs)
+    if not url:
+        raise RuntimeError(
+            "No Elasticsearch configured. In .env set either ES_URL "
+            "(http://localhost:9200 for local Docker; your endpoint URL for "
+            "Elastic Cloud or Serverless, plus ES_API_KEY) or ES_CLOUD_ID + "
+            "ES_API_KEY for a managed Cloud deployment."
+        )
     return Elasticsearch(url, **kwargs)
 
 

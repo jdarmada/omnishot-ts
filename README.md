@@ -88,25 +88,84 @@ cp .env.example .env
 | Variable | Required | Description |
 |---|---|---|
 | `JINA_API_KEY` | Yes | Embeddings for ingest + search |
-| `ES_URL` | Yes | `http://localhost:9200` or your cloud URL |
-| `ES_API_KEY` | No | Needed for secured / cloud clusters |
+| `ES_URL` | Yes* | Elasticsearch endpoint URL (any deployment type) |
+| `ES_CLOUD_ID` | No* | Alternative to `ES_URL` for managed Elastic Cloud |
+| `ES_API_KEY` | No | Required for Cloud and Serverless; blank for local Docker |
 | `PEXELS_API_KEY` | No | Only for `download_pexels.py` |
 | `WATCH_DIR` | No | Initial library folder (default `./clips`) |
 | `CHUNKS_DIR` | No | Scene chunk output (default `./chunks`) |
 | `BROLL_INDEX` | No | ES index name (default `broll`) |
 
-The linked library path is also persisted in `chunks/.library.json` after you change it in the UI.
+\* Set either `ES_URL` or `ES_CLOUD_ID`. The linked library path is persisted in `chunks/.library.json` after you change it in the UI.
 
 ---
 
-## Start Elasticsearch
+## Choosing an Elasticsearch deployment
+
+The app runs unchanged against local Docker, a managed Elastic Cloud
+deployment, or Elastic Cloud Serverless — pick one in `.env`.
+
+### Local Docker (default)
 
 ```bash
 docker compose up -d elasticsearch
 curl http://localhost:9200   # should return cluster info
 ```
 
-Or point `ES_URL` / `ES_API_KEY` at Elastic Cloud and skip Docker.
+```dotenv
+ES_URL=http://localhost:9200
+ES_API_KEY=
+```
+
+Security is disabled in the compose file and the port binds to localhost
+only, so no key is needed.
+
+### Elastic Cloud (managed)
+
+From your deployment page, copy the Elasticsearch endpoint and
+[create an API key](https://www.elastic.co/guide/en/kibana/current/api-keys.html):
+
+```dotenv
+ES_URL=https://my-deployment.es.us-west1.gcp.cloud.es.io:443
+ES_API_KEY=<your key>
+```
+
+Or use the deployment's **Cloud ID** instead of the URL:
+
+```dotenv
+ES_CLOUD_ID=my-deployment:dXMtd2VzdDEuZ2NwLi4u
+ES_API_KEY=<your key>
+```
+
+### Elastic Cloud Serverless
+
+From your project's overview page, copy the Elasticsearch endpoint and
+create an API key:
+
+```dotenv
+ES_URL=https://my-project-abc123.es.us-east-1.aws.elastic.cloud:443
+ES_API_KEY=<your key>
+```
+
+Everything this app uses (kNN, aggregations, bulk indexing) is supported on
+Serverless; index sizing and shard tuning are managed for you.
+
+### Switching between deployments
+
+Edit `.env` and restart the backend — that's it. On startup the app checks
+which of your clips exist in the connected cluster and automatically
+re-indexes any that are missing, reusing cached embeddings from
+`chunks/.embed_cache.json`, so **moving between deployments never re-pays
+the embedding API**. Your old cluster's data is left untouched (delete its
+index manually if you're done with it).
+
+Verify what you're connected to at any time:
+
+```bash
+curl -s localhost:8001/api/health
+# → {"elasticsearch": true, "deployment": {"flavor": "default", "version": "9.4.3", ...}}
+# flavor is "serverless" on Serverless
+```
 
 ---
 
