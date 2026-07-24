@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-07-23
+
+### Added
+
+- **Sibling scene expansion**: search results still show one card per clip,
+  but now display "N more matching scenes" with an expander that reveals all
+  of that clip's matching scenes, ranked against the original query
+  (`POST /api/clip_matches`, powered by a cached query vector — no extra
+  embedding API calls)
+- **Lightbox player**: click any clip preview (results, home page, or
+  expanded scenes) to open a large popup player with native controls
+- **Elasticsearch deployment portability**: run against local Docker,
+  managed Elastic Cloud (`ES_URL` or new `ES_CLOUD_ID`), or Elastic Cloud
+  Serverless. On startup the app reconciles the local manifest with the
+  connected cluster and re-indexes missing clips automatically, using a
+  persistent embed cache (`chunks/.embed_cache.json`) so switching
+  deployments never re-pays the embedding API
+- `/api/health` now reports the connected deployment (flavor, version,
+  cluster name)
+
+### Changed
+
+- Dependency updates across the board (elasticsearch, fastapi, python-dotenv,
+  httpx, ruff, vite 8, GitHub Actions); Dependabot now opens one grouped PR
+  per ecosystem
+
 ## [0.1.1] - 2026-07-23
 
 ### Added
