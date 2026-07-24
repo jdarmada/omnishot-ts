@@ -9,7 +9,6 @@ Python FastAPI backend + TypeScript (Vite) frontend. Embeddings via [jina-embedd
 
 ## Quick start (Docker)
 
-The fastest way to try it — one command runs Elasticsearch + the app:
 
 ```bash
 git clone https://github.com/jdarmada/omnishot
